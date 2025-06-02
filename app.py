@@ -1,14 +1,10 @@
-from flask import Flask, request, send_file, render_template_string, session
+from flask import Flask, request, send_file, render_template_string
 from docx import Document
 from docx.shared import Inches, Pt
 from PIL import Image
-import io, zipfile, os, uuid
+import io, zipfile, os
 
 app = Flask(__name__)
-app.secret_key = 'your-secret-key'
-
-TEMP_FOLDER = "/tmp"
-os.makedirs(TEMP_FOLDER, exist_ok=True)
 
 HTML_PAGE = '''
 <!DOCTYPE html>
@@ -51,30 +47,6 @@ HTML_PAGE = '''
         button:hover {
             background-color: #0056b3;
         }
-        .message {
-            margin-top: 2em;
-            color: green;
-            font-size: 1.2em;
-        }
-        a.download-button {
-            display: inline-block;
-            margin-top: 1.5em;
-            padding: 14px 28px;
-            font-size: 1.2em;
-            background-color: #28a745;
-            color: white;
-            border-radius: 8px;
-            text-decoration: none;
-        }
-        a.download-button:hover {
-            background-color: #1e7e34;
-        }
-        #doneMsg {
-            font-size: 1.2em;
-            margin-top: 2em;
-            color: #333;
-            display: none;
-        }
     </style>
 </head>
 <body>
@@ -85,23 +57,7 @@ HTML_PAGE = '''
             <br>
             <button type="submit">Upload & Generate</button>
         </form>
-        {% if file_ready %}
-            <div class="message">
-                ✅ Document ready!
-                <br>
-                <a href="/download/{{ doc_id }}" onclick="afterDownload()" class="download-button" download>
-                    📥 Download Word Document
-                </a>
-            </div>
-        {% endif %}
-        <div class="message" id="doneMsg">🎉 Downloaded! Reloading...</div>
     </div>
-    <script>
-        function afterDownload() {
-            document.getElementById('doneMsg').style.display = 'block';
-            setTimeout(() => { window.location.href = "/" }, 3000);
-        }
-    </script>
 </body>
 </html>
 '''
@@ -155,28 +111,19 @@ def index():
                     except Exception as e:
                         doc.add_paragraph(f"[Error inserting {filename}: {e}]")
 
-            doc_id = str(uuid.uuid4())
-            file_path = os.path.join(TEMP_FOLDER, f"{doc_id}.docx")
-            doc.save(file_path)
+            output_stream = io.BytesIO()
+            doc.save(output_stream)
+            output_stream.seek(0)
 
-            session['doc_id'] = doc_id
-            session['file_name'] = f"{main_folder_name}.docx"
-
-            return render_template_string(HTML_PAGE, file_ready=True, doc_id=doc_id)
+            return send_file(output_stream,
+                             as_attachment=True,
+                             download_name=f"{main_folder_name}.docx",
+                             mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document')
 
         except Exception as e:
             return f"Error processing ZIP: {e}", 500
 
-    return render_template_string(HTML_PAGE, file_ready=False)
-
-@app.route("/download/<doc_id>")
-def download(doc_id):
-    file_path = os.path.join(TEMP_FOLDER, f"{doc_id}.docx")
-    if not os.path.exists(file_path):
-        return "Document expired or not found", 404
-
-    file_name = session.get('file_name', 'output.docx')
-    return send_file(file_path, as_attachment=True, download_name=file_name)
+    return render_template_string(HTML_PAGE)
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
