@@ -132,3 +132,5 @@ webencodings==0.5.1
 Werkzeug==3.0.4
 wrapt==1.17.2
 xhtml2pdf==0.2.16
+gunicorn==23.0.0
+
