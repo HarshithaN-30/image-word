@@ -7,7 +7,8 @@ import io, zipfile, os, uuid
 app = Flask(__name__)
 app.secret_key = 'your-secret-key'
 
-in_memory_docs = {}
+TEMP_FOLDER = "/tmp"
+os.makedirs(TEMP_FOLDER, exist_ok=True)
 
 HTML_PAGE = '''
 <!DOCTYPE html>
@@ -154,16 +155,12 @@ def index():
                     except Exception as e:
                         doc.add_paragraph(f"[Error inserting {filename}: {e}]")
 
-            output_stream = io.BytesIO()
-            doc.save(output_stream)
-            output_stream.seek(0)
-
             doc_id = str(uuid.uuid4())
-            in_memory_docs[doc_id] = {
-                "buffer": output_stream,
-                "name": f"{main_folder_name}.docx"
-            }
+            file_path = os.path.join(TEMP_FOLDER, f"{doc_id}.docx")
+            doc.save(file_path)
+
             session['doc_id'] = doc_id
+            session['file_name'] = f"{main_folder_name}.docx"
 
             return render_template_string(HTML_PAGE, file_ready=True, doc_id=doc_id)
 
@@ -174,12 +171,14 @@ def index():
 
 @app.route("/download/<doc_id>")
 def download(doc_id):
-    doc_info = in_memory_docs.get(doc_id)
-    if not doc_info:
+    file_path = os.path.join(TEMP_FOLDER, f"{doc_id}.docx")
+    if not os.path.exists(file_path):
         return "Document expired or not found", 404
-    return send_file(doc_info["buffer"], as_attachment=True, download_name=doc_info["name"])
+
+    file_name = session.get('file_name', 'output.docx')
+    return send_file(file_path, as_attachment=True, download_name=file_name)
 
 if __name__ == "__main__":
-     port = int(os.environ.get("PORT", 5000))  # fallback to 5000 only if PORT is missing
-     print(f"Starting app on port {port}")
-     app.run(host="0.0.0.0", port=port)
+    port = int(os.environ.get("PORT", 5000))
+    print(f"Starting app on port {port}")
+    app.run(host="0.0.0.0", port=port)
