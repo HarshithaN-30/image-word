@@ -180,5 +180,6 @@ def download(doc_id):
     return send_file(doc_info["buffer"], as_attachment=True, download_name=doc_info["name"])
 
 if __name__ == "__main__":
-     port = int(os.environ.get("PORT", 5000))
+     port = int(os.environ.get("PORT", 5000))  # fallback to 5000 only if PORT is missing
+     print(f"Starting app on port {port}")
      app.run(host="0.0.0.0", port=port)
